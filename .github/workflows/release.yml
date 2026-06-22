@@ -46,6 +46,12 @@ jobs:
                   if [[ "$tag_lower" == *alpha* || "$tag_lower" == *beta* ]]; then
                     release_flags+=(--prerelease)
                   elif [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    gh release list --limit 100 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease) | .tagName' |
+                      while read -r prerelease_tag; do
+                        if [[ -n "$prerelease_tag" ]]; then
+                          gh release delete "$prerelease_tag" --yes
+                        fi
+                      done
                     release_flags+=()
                   else
                     release_flags+=(--draft)
