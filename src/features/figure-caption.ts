@@ -3,6 +3,7 @@ import { MarkdownPostProcessorContext, Plugin } from 'obsidian';
 const FIGURE_CLASS = 'better-figures-figure';
 const CAPTION_CLASS = 'better-figures-figure-caption';
 const LIVE_PREVIEW_SELECTOR = '.markdown-source-view.mod-cm6.is-live-preview';
+const IMAGE_EMBED_SELECTOR = '.internal-embed.image-embed, .image-embed';
 
 export function registerFigureCaption(plugin: Plugin) {
 	plugin.registerMarkdownPostProcessor(
@@ -49,6 +50,10 @@ function processLivePreviewFigureCaptions(el: HTMLElement) {
 }
 
 function processFigureCaptions(el: HTMLElement) {
+	if (el.matches('img')) {
+		processFigureCaption(el);
+	}
+
 	el.querySelectorAll('img').forEach((img) => {
 		processFigureCaption(img);
 	});
@@ -62,11 +67,12 @@ export function processFigureCaption(img: Element) {
 	const parent = img.parentElement;
 	if (!parent) return;
 
-	const link = parent.closest('a');
-	if (!link) return;
-
 	const altText = img.getAttribute('alt')?.trim() || '';
 	if (!altText) return;
+
+	const target = getFigureTarget(img);
+	const container = target.parentElement;
+	if (!container) return;
 
 	const figure = activeDocument.createElement('figure');
 	figure.className = FIGURE_CLASS;
@@ -75,7 +81,18 @@ export function processFigureCaption(img: Element) {
 	caption.className = CAPTION_CLASS;
 	caption.textContent = altText;
 
-	link.parentElement?.insertBefore(figure, link);
-	figure.appendChild(link);
+	container.insertBefore(figure, target);
+	figure.appendChild(target);
 	figure.appendChild(caption);
+}
+
+function getFigureTarget(img: Element) {
+	const parent = img.parentElement;
+	const link = parent?.closest('a');
+	if (link) return link;
+
+	const imageEmbed = img.closest(IMAGE_EMBED_SELECTOR);
+	if (imageEmbed?.instanceOf(HTMLElement)) return imageEmbed;
+
+	return img;
 }
