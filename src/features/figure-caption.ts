@@ -2,13 +2,15 @@ import { MarkdownPostProcessorContext, Plugin } from 'obsidian';
 
 const FIGURE_CLASS = 'better-figures-figure';
 const CAPTION_CLASS = 'better-figures-figure-caption';
+const LIVE_FIGURE_CLASS = 'better-figures-live-figure';
 const LIVE_PREVIEW_SELECTOR = '.markdown-source-view.mod-cm6.is-live-preview';
 const IMAGE_EMBED_SELECTOR = '.internal-embed.image-embed, .image-embed';
+const CAPTION_DATA_ATTR = 'betterFiguresCaption';
 
 export function registerFigureCaption(plugin: Plugin) {
 	plugin.registerMarkdownPostProcessor(
 		(el: HTMLElement, _ctx: MarkdownPostProcessorContext) => {
-			processFigureCaptions(el);
+			processReadingFigureCaptions(el);
 		},
 	);
 
@@ -38,28 +40,38 @@ export function registerFigureCaption(plugin: Plugin) {
 function processLivePreviewFigureCaptions(el: HTMLElement) {
 	const livePreviewContainer = el.closest(LIVE_PREVIEW_SELECTOR);
 	if (livePreviewContainer?.instanceOf(HTMLElement)) {
-		processFigureCaptions(livePreviewContainer);
+		processLivePreviewImages(livePreviewContainer);
 		return;
 	}
 
 	el.querySelectorAll(LIVE_PREVIEW_SELECTOR).forEach((container) => {
 		if (container.instanceOf(HTMLElement)) {
-			processFigureCaptions(container);
+			processLivePreviewImages(container);
 		}
 	});
 }
 
-function processFigureCaptions(el: HTMLElement) {
+function processReadingFigureCaptions(el: HTMLElement) {
 	if (el.matches('img')) {
-		processFigureCaption(el);
+		processReadingFigureCaption(el);
 	}
 
 	el.querySelectorAll('img').forEach((img) => {
-		processFigureCaption(img);
+		processReadingFigureCaption(img);
 	});
 }
 
-export function processFigureCaption(img: Element) {
+function processLivePreviewImages(el: HTMLElement) {
+	if (el.matches('img')) {
+		processLivePreviewFigureCaption(el);
+	}
+
+	el.querySelectorAll('img').forEach((img) => {
+		processLivePreviewFigureCaption(img);
+	});
+}
+
+export function processReadingFigureCaption(img: Element) {
 	if (img.closest(`.${FIGURE_CLASS}`)) {
 		return;
 	}
@@ -70,7 +82,7 @@ export function processFigureCaption(img: Element) {
 	const altText = img.getAttribute('alt')?.trim() || '';
 	if (!altText) return;
 
-	const target = getFigureTarget(img);
+	const target = getReadingFigureTarget(img);
 	const container = target.parentElement;
 	if (!container) return;
 
@@ -86,13 +98,32 @@ export function processFigureCaption(img: Element) {
 	figure.appendChild(caption);
 }
 
-function getFigureTarget(img: Element) {
+function processLivePreviewFigureCaption(img: Element) {
+	const altText = img.getAttribute('alt')?.trim() || '';
+	if (!altText) return;
+
+	const target = getLivePreviewFigureTarget(img);
+	if (!target.instanceOf(HTMLElement)) return;
+
+	target.addClass(LIVE_FIGURE_CLASS);
+	target.dataset[CAPTION_DATA_ATTR] = altText;
+}
+
+function getReadingFigureTarget(img: Element) {
 	const parent = img.parentElement;
 	const link = parent?.closest('a');
 	if (link) return link;
 
+	return img;
+}
+
+function getLivePreviewFigureTarget(img: Element) {
 	const imageEmbed = img.closest(IMAGE_EMBED_SELECTOR);
 	if (imageEmbed?.instanceOf(HTMLElement)) return imageEmbed;
+
+	const parent = img.parentElement;
+	const link = parent?.closest('a');
+	if (link) return link;
 
 	return img;
 }
