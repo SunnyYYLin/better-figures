@@ -1,6 +1,6 @@
 {
 	"name": "better-figures",
-	"version": "0.0.1-beta.3",
+	"version": "0.0.1-beta.4",
 	"description": "Enhanced figure support for Obsidian, including captions for native image syntax.",
 	"main": "main.js",
 	"type": "module",
@@ -13,7 +13,6 @@
 	"keywords": ["obsidian", "figures", "images", "markdown", "plugin"],
 	"license": "0-BSD",
 	"devDependencies": {
-		"@codemirror/view": "6.38.6",
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^22.15.17",
 		"esbuild": "0.25.5",

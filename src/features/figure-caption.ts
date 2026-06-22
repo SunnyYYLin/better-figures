@@ -1,51 +1,51 @@
-import {
-	MarkdownPostProcessorContext,
-	MarkdownRenderChild,
-	Plugin,
-} from 'obsidian';
-import {
-	Decoration,
-	DecorationSet,
-	EditorView,
-	ViewPlugin,
-	ViewUpdate,
-	WidgetType,
-} from '@codemirror/view';
+import { MarkdownPostProcessorContext, Plugin } from 'obsidian';
 
 const FIGURE_CLASS = 'better-figures-figure';
 const CAPTION_CLASS = 'better-figures-figure-caption';
-const LIVE_CAPTION_CLASS = 'better-figures-live-caption';
-const EMBED_SELECTOR = '.internal-embed.image-embed, .image-embed';
-const MARKDOWN_IMAGE_REGEX = /!\[([^\]\n]+)\]\([^)]+\)/g;
+const LIVE_PREVIEW_SELECTOR = '.markdown-source-view.mod-cm6.is-live-preview';
 
 export function registerFigureCaption(plugin: Plugin) {
 	plugin.registerMarkdownPostProcessor(
-		(el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+		(el: HTMLElement, _ctx: MarkdownPostProcessorContext) => {
 			processFigureCaptions(el);
-			ctx.addChild(new FigureCaptionRenderChild(el));
 		},
 	);
 
-	plugin.registerEditorExtension(livePreviewFigureCaptionPlugin);
+	const observer = new MutationObserver((mutations) => {
+		for (const mutation of mutations) {
+			if (mutation.type !== 'childList') {
+				continue;
+			}
+
+			mutation.addedNodes.forEach((node) => {
+				if (node.instanceOf(HTMLElement)) {
+					processLivePreviewFigureCaptions(node);
+				}
+			});
+		}
+	});
+
+	observer.observe(activeDocument.body, {
+		childList: true,
+		subtree: true,
+	});
+
+	plugin.register(() => observer.disconnect());
+	processLivePreviewFigureCaptions(activeDocument.body);
 }
 
-class FigureCaptionRenderChild extends MarkdownRenderChild {
-	private observer: MutationObserver | null = null;
-
-	onload() {
-		this.observer = new MutationObserver(() => {
-			processFigureCaptions(this.containerEl);
-		});
-
-		this.observer.observe(this.containerEl, {
-			childList: true,
-			subtree: true,
-		});
+function processLivePreviewFigureCaptions(el: HTMLElement) {
+	const livePreviewContainer = el.closest(LIVE_PREVIEW_SELECTOR);
+	if (livePreviewContainer?.instanceOf(HTMLElement)) {
+		processFigureCaptions(livePreviewContainer);
+		return;
 	}
 
-	onunload() {
-		this.observer?.disconnect();
-	}
+	el.querySelectorAll(LIVE_PREVIEW_SELECTOR).forEach((container) => {
+		if (container.instanceOf(HTMLElement)) {
+			processFigureCaptions(container);
+		}
+	});
 }
 
 function processFigureCaptions(el: HTMLElement) {
@@ -54,132 +54,28 @@ function processFigureCaptions(el: HTMLElement) {
 	});
 }
 
-export function processFigureCaption(img: HTMLImageElement) {
+export function processFigureCaption(img: Element) {
 	if (img.closest(`.${FIGURE_CLASS}`)) {
 		return;
 	}
 
-	const captionText = img.getAttribute('alt')?.trim();
-	if (!captionText) {
-		return;
-	}
+	const parent = img.parentElement;
+	if (!parent) return;
 
-	const renderTarget = getImageRenderTarget(img);
-	const container = renderTarget.parentElement;
-	if (!container) {
-		return;
-	}
+	const link = parent.closest('a');
+	if (!link) return;
+
+	const altText = img.getAttribute('alt')?.trim() || '';
+	if (!altText) return;
 
 	const figure = activeDocument.createElement('figure');
-	figure.addClass(FIGURE_CLASS);
+	figure.className = FIGURE_CLASS;
 
 	const caption = activeDocument.createElement('figcaption');
-	caption.addClass(CAPTION_CLASS);
-	caption.textContent = captionText;
+	caption.className = CAPTION_CLASS;
+	caption.textContent = altText;
 
-	container.insertBefore(figure, renderTarget);
-	figure.appendChild(renderTarget);
+	link.parentElement?.insertBefore(figure, link);
+	figure.appendChild(link);
 	figure.appendChild(caption);
-}
-
-function getImageRenderTarget(img: HTMLImageElement) {
-	const embed = img.closest(EMBED_SELECTOR);
-	if (embed instanceof HTMLElement) {
-		return embed;
-	}
-
-	const parent = img.parentElement;
-	if (parent?.tagName === 'A') {
-		return parent;
-	}
-
-	return img;
-}
-
-const livePreviewFigureCaptionPlugin = ViewPlugin.fromClass(
-	class {
-		private view: EditorView;
-		decorations: DecorationSet;
-
-		constructor(view: EditorView) {
-			this.view = view;
-			this.decorations = buildLivePreviewDecorations(view);
-		}
-
-		update(update: ViewUpdate) {
-			if (
-				update.docChanged ||
-				update.viewportChanged ||
-				update.selectionSet
-			) {
-				this.decorations = buildLivePreviewDecorations(this.view);
-			}
-		}
-	},
-	{
-		decorations: (plugin) => plugin.decorations,
-	},
-);
-
-function buildLivePreviewDecorations(view: EditorView) {
-	if (!view.dom.closest('.is-live-preview')) {
-		return Decoration.none;
-	}
-
-	const decorations = [];
-
-	for (const range of view.visibleRanges) {
-		let pos = range.from;
-		while (pos <= range.to) {
-			const line = view.state.doc.lineAt(pos);
-			const captions = getLineImageCaptions(line.text);
-
-			for (const caption of captions) {
-				decorations.push(
-					Decoration.widget({
-						widget: new FigureCaptionWidget(caption),
-						block: true,
-						side: 1,
-					}).range(line.to),
-				);
-			}
-
-			if (line.to + 1 > range.to) {
-				break;
-			}
-			pos = line.to + 1;
-		}
-	}
-
-	return Decoration.set(decorations, true);
-}
-
-function getLineImageCaptions(line: string) {
-	const captions: string[] = [];
-
-	for (const match of line.matchAll(MARKDOWN_IMAGE_REGEX)) {
-		const caption = match[1]?.trim();
-		if (caption) {
-			captions.push(caption);
-		}
-	}
-
-	return captions;
-}
-
-class FigureCaptionWidget extends WidgetType {
-	constructor(private readonly caption: string) {
-		super();
-	}
-
-	toDOM() {
-		const captionEl = activeDocument.createElement('div');
-		captionEl.addClass(LIVE_CAPTION_CLASS);
-		captionEl.textContent = this.caption;
-		return captionEl;
-	}
-
-	eq(other: FigureCaptionWidget) {
-		return other.caption === this.caption;
-	}
 }
