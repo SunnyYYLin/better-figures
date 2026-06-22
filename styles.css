@@ -1,8 +1,19 @@
-/*
+.better-figures-figure {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin: 1em 0;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.better-figures-figure img {
+	max-width: 100%;
+	height: auto;
+}
 
-If your plugin does not need CSS, delete this file.
-
-*/
+.better-figures-figure-caption {
+	margin-top: 0.5em;
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
+	line-height: var(--line-height-tight);
+	text-align: center;
+}
