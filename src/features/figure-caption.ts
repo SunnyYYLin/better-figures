@@ -114,6 +114,9 @@ function getReadingFigureTarget(img: Element) {
 	const link = parent?.closest('a');
 	if (link) return link;
 
+	const imageEmbed = img.closest(IMAGE_EMBED_SELECTOR);
+	if (imageEmbed?.instanceOf(HTMLElement)) return imageEmbed;
+
 	return img;
 }
 
