@@ -1,4 +1,8 @@
-import { MarkdownPostProcessorContext, Plugin } from 'obsidian';
+import {
+	MarkdownPostProcessorContext,
+	MarkdownRenderChild,
+	Plugin,
+} from 'obsidian';
 
 const FIGURE_CLASS = 'better-figures-figure';
 const CAPTION_CLASS = 'better-figures-figure-caption';
@@ -9,8 +13,9 @@ const CAPTION_DATA_ATTR = 'betterFiguresCaption';
 
 export function registerFigureCaption(plugin: Plugin) {
 	plugin.registerMarkdownPostProcessor(
-		(el: HTMLElement, _ctx: MarkdownPostProcessorContext) => {
+		(el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
 			processReadingFigureCaptions(el);
+			ctx.addChild(new ReadingFigureCaptionRenderChild(el));
 		},
 	);
 
@@ -35,6 +40,35 @@ export function registerFigureCaption(plugin: Plugin) {
 
 	plugin.register(() => observer.disconnect());
 	processLivePreviewFigureCaptions(activeDocument.body);
+}
+
+class ReadingFigureCaptionRenderChild extends MarkdownRenderChild {
+	private observer: MutationObserver | null = null;
+
+	onload() {
+		this.observer = new MutationObserver((mutations) => {
+			for (const mutation of mutations) {
+				if (mutation.type !== 'childList') {
+					continue;
+				}
+
+				mutation.addedNodes.forEach((node) => {
+					if (node.instanceOf(HTMLElement)) {
+						processReadingFigureCaptions(node);
+					}
+				});
+			}
+		});
+
+		this.observer.observe(this.containerEl, {
+			childList: true,
+			subtree: true,
+		});
+	}
+
+	onunload() {
+		this.observer?.disconnect();
+	}
 }
 
 function processLivePreviewFigureCaptions(el: HTMLElement) {
